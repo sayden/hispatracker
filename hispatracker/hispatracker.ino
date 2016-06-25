@@ -32,6 +32,13 @@
 
 #endif
 
+// Arduino/AVR libs
+#if (ARDUINO + 1) >= 100
+#  include <Arduino.h>
+#else
+#  include <WProgram.h>
+#endif
+
 
 // Trackuino custom libs
 #include "config.h"
@@ -39,9 +46,13 @@
 #include "aprs.h"
 #include "pin.h"
 #include "power.h"
+#include "AprsSender.h"
 
+//External temp sensor
+#include <OneWire.h>
+OneWire  ds(2);  // on pin 10 (a 4.7K resistor is necessary)
 
-//TinyGPS gps;
+//GPS
 #include <NMEAGPS.h>
 #include <NeoSWSerial.h>
 
@@ -52,13 +63,10 @@ static uint8_t gpsUpdates = 0; // how many updates since power_save
 NeoSWSerial gpsS(RXPIN, TXPIN);
 HardwareSerial & hx1 = Serial; // an alias for pins 0/1
 
-// Arduino/AVR libs
-#if (ARDUINO + 1) >= 100
-#  include <Arduino.h>
-#else
-#  include <WProgram.h>
-#endif
-
+//Internal Temp sensor
+#include <Wire.h>
+#include "Adafruit_BMP085.h"  // Adafruit BMP085 library
+Adafruit_BMP085 bmp;
 
 // Module constants
 static const uint32_t VALID_POS_TIMEOUT = 2000;  // ms
@@ -66,17 +74,21 @@ static const uint32_t VALID_POS_TIMEOUT = 2000;  // ms
 // Module variables
 static int32_t next_aprs = 0;
 
-
 void setup(){
   pinMode(LED_PIN, OUTPUT);
   pin_write(LED_PIN, LOW);
+  
+  if (!bmp.begin()) {
+  Serial.println("Could not find a valid BMP085 sensor, check wiring!");
+  while (1) {}
+  }
 
   afsk_setup();
   gpsS.begin(9600);
-  hx1.begin(115200);
+  hx1.begin(9600);
 }
-void loop()
-{
+
+void loop(){
   // Read the GPS port and parse the characters.  When
   //   a complete fix is available, we'll read it.
 
@@ -87,13 +99,20 @@ void loop()
     if (gpsUpdates >= 2) {
       // Wait for two full GPS updates to come in before we use them
 
-      hx1.print("LAT=");
-      if (fix.valid.location)
-        hx1.print( fix.latitude(), 6 );
-      hx1.print(" LON=");
-      if (fix.valid.location)
-        hx1.print( fix.longitude(), 6 );
-      hx1.println();
+      //Check pressure the flight day in http://weather.noaa.gov/weather/current/LEMD.html
+      //We take the value between parenthesis. If pressure is 1013 write in readAltitude
+      //this value multiplied by 100
+      APRSPacket packet{fix.latitude(),
+                        fix.longitude(),
+                        fix.altitude(),
+                        bmp.readAltitude(101300),
+                        fix.speed(),
+                        fix.heading(),
+                        externalTemp(&ds),
+                        bmp.readTemperature(),
+                        bmp.readPressure() };
+
+      packet.testSendAprsWithChars(&hx1);
 
       // Time for another APRS frame?
       next_aprs++;
@@ -101,38 +120,73 @@ void loop()
         next_aprs  = 0; // reset for next time
         gpsUpdates = 0;
 
-        char lati[12];
-        dtostrf(fix.latitude(), 8, 6, lati);
-        aprs_send("gps_time", lati, "gps_aprs_lon", 100, 101, 102, "int_temperature",
+        aprs_send("gps_time", "gps_aprs_lat", "gps_aprs_lon", 100, 101, 102, "int_temperature",
         "ext_temperature", "sensors_vin");
         next_aprs += APRS_PERIOD * 1000L;
         while (afsk_flush()) {
           power_save();
         }
-
-        #ifdef DEBUG_MODEM
-            // Show modem ISR stats from the previous transmission
-            afsk_debug();
-        #endif
       }
     }
   }
 }
 
-void sendAprsWithChars(fix gps_fix) {
-        char latitudeti[12];
-        dtostrf(fix.latitude(), 8, 6, latitudeti);
-        
-        char longitude[12];
-        dtostrf(fix.latitude(), 8, 6, longitude);
-        
-        char altitude[12];
-        dtostrf(fix.altitude(), 8, 6, altitude);
-        
-        char speed[12];
-        dtostrf(fix.speed_kph(), 8, 6, speed);
-        
-        char heading[12];
-        dtostrf(fix.heading_cd(), 8, 6, heading);
-}
 
+float lastExtTemp = 0;
+
+//externalTemp uses DS18B20 to return a floating point value representing the
+//external temperature in celsius
+float externalTemp(OneWire *ds){
+  byte i;
+  byte present = 0;
+  byte type_s;
+  byte data[12];
+  byte addr[8];
+  float celsius, fahrenheit;
+  
+  if ( !ds->search(addr)) {
+    ds->reset_search();
+    delay(250);
+    return lastExtTemp;
+  }
+
+  if (OneWire::crc8(addr, 7) != addr[7]) {
+      hx1.println("CRC is not valid!");
+      return -100.0;
+  }
+  type_s = 0; 
+
+  ds->reset();
+  ds->select(addr);
+  ds->write(0x44, 1);        // start conversion, with parasite power on at the end
+  
+//  delay(1000);     // maybe 750ms is enough, maybe not
+  
+  present = ds->reset();
+  ds->select(addr);    
+  ds->write(0xBE);         // Read Scratchpad
+
+  for ( i = 0; i < 9; i++) {           // we need 9 bytes
+    data[i] = ds->read();
+  }
+
+  // Convert the data to actual temperature
+  int16_t raw = (data[1] << 8) | data[0];
+  if (type_s) {
+    raw = raw << 3; // 9 bit resolution default
+    if (data[7] == 0x10) {
+      // "count remain" gives full 12 bit resolution
+      raw = (raw & 0xFFF0) + 12 - data[6];
+    }
+  } else {
+    byte cfg = (data[4] & 0x60);
+    // at lower res, the low bits are undefined, so let's zero them
+    if (cfg == 0x00) raw = raw & ~7;  // 9 bit resolution, 93.75 ms
+    else if (cfg == 0x20) raw = raw & ~3; // 10 bit res, 187.5 ms
+    else if (cfg == 0x40) raw = raw & ~1; // 11 bit res, 375 ms
+    //// default is 12 bit resolution, 750 ms conversion time
+  }
+  lastExtTemp = (float)raw / 16.0;
+
+  return lastExtTemp;
+}
