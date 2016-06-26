@@ -12,25 +12,19 @@
 // - Cars:       9
 // - Home:       0
 // - IGate:      5
-#define S_CALLSIGN      "TUTRHA"
-#define S_CALLSIGN_ID   11
+// #define S_CALLSIGN      "TUTRHA"
+// #define S_CALLSIGN_ID   11
 
 // Destination callsign: APRS (with SSID=0) is usually okay.
-#define D_CALLSIGN      "APRS"
-#define D_CALLSIGN_ID   0
+// #define D_CALLSIGN      "APRS"
+// #define D_CALLSIGN_ID   0
 
 // Digipeating paths:
 // (read more about digipeating paths here: http://wa8lmf.net/DigiPaths/ )
 // The recommended digi path for a balloon is WIDE2-1 or pathless. The default
 // is pathless. Uncomment the following two lines for WIDE2-1 path:
-#define DIGI_PATH1      "WIDE2"
-#define DIGI_PATH1_TTL  1
-
-// APRS comment: this goes in the comment portion of the APRS message. You
-// might want to keep this short. The longer the packet, the more vulnerable
-// it is to noise. 
-#define APRS_COMMENT    "Trackuino reminder: replace callsign with your own"
-
+// #define DIGI_PATH1      "WIDE2"
+// #define DIGI_PATH1_TTL  1
 
 // --------------------------------------------------------------------------
 // AX.25 config (ax25.cpp)

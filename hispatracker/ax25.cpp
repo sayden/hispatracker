@@ -1,20 +1,3 @@
-/* trackuino copyright (C) 2010  EA5HAV Javi
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
-
 #include "ax25.h"
 #include "config.h"
 #include "afsk_avr.h"
@@ -76,9 +59,6 @@ ax25_send_byte(uint8_t a_byte)
 {
   // Wrap around send_byte, but prints debug info
   send_byte(a_byte);
-#ifdef DEBUG_AX25
-  Serial.print((char)a_byte);
-#endif
 }
 
 void
@@ -138,34 +118,6 @@ ax25_send_header(const struct s_address *addresses, int num_addresses)
   // Protocol ID: 0xf0 = no layer 3 data
   send_byte(0xf0);
 
-#ifdef DEBUG_AX25
-  // Print source callsign
-  Serial.println();
-  Serial.print('[');
-  Serial.print(millis());
-  Serial.print("] ");
-  Serial.print(addresses[1].callsign);
-  if (addresses[1].ssid) {
-    Serial.print('-');
-    Serial.print((unsigned int)addresses[1].ssid);
-  }
-  Serial.print('>');
-  // Destination callsign
-  Serial.print(addresses[0].callsign);
-  if (addresses[0].ssid) {
-    Serial.print('-');
-    Serial.print((unsigned int)addresses[0].ssid);
-  }
-  for (i = 2; i < num_addresses; i++) {
-    Serial.print(',');
-    Serial.print(addresses[i].callsign);
-    if (addresses[i].ssid) {
-      Serial.print('-');
-      Serial.print((unsigned int)addresses[i].ssid);
-    }
-  }
-  Serial.print(':');
-#endif
 }
 
 void 
@@ -181,9 +133,6 @@ ax25_send_footer()
   
   // Signal the end of frame
   ax25_send_flag();
-#ifdef DEBUG_AX25
-  Serial.println();
-#endif
 }
 
 void

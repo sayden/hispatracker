@@ -19,26 +19,26 @@
 // as an empty macro (hence the +0 hack). UNO32 builds are fine. Just use the
 // real Arduino IDE for Arduino builds. Optionally complain to the Mpide
 // authors to fix the broken macro.
-#if (ARDUINO + 0) == 0
-#error "Oops! We need the real Arduino IDE (version 22 or 23) for Arduino builds."
-#error "See trackuino.pde for details on this"
+// #if (ARDUINO + 0) == 0
+// #error "Oops! We need the real Arduino IDE (version 22 or 23) for Arduino builds."
+// #error "See trackuino.pde for details on this"
 
-// Refuse to compile on arduino version 21 or lower. 22 includes an 
-// optimization of the USART code that is critical for real-time operation
-// of the AVR code.
-#elif (ARDUINO + 0) < 22
-#error "Oops! We need Arduino 22 or 23"
-#error "See trackuino.pde for details on this"
+// // Refuse to compile on arduino version 21 or lower. 22 includes an 
+// // optimization of the USART code that is critical for real-time operation
+// // of the AVR code.
+// #elif (ARDUINO + 0) < 22
+// #error "Oops! We need Arduino 22 or 23"
+// #error "See trackuino.pde for details on this"
 
-#endif
+// #endif
 
-// Arduino/AVR libs
-#if (ARDUINO + 1) >= 100
-#  include <Arduino.h>
-#else
-#  include <WProgram.h>
-#endif
-
+// // Arduino/AVR libs
+// #if (ARDUINO + 1) >= 100
+// #  include <Arduino.h>
+// #else
+// #  include <WProgram.h>
+// #endif
+#include <Arduino.h>
 
 // Trackuino custom libs
 #include "config.h"
@@ -46,7 +46,6 @@
 #include "aprs.h"
 #include "pin.h"
 #include "power.h"
-#include "AprsSender.h"
 
 //External temp sensor
 #include <OneWire.h>
@@ -61,7 +60,6 @@ static gps_fix fix;  // GPS fields are stored here as they are parsed
 static uint8_t gpsUpdates = 0; // how many updates since power_save
 
 NeoSWSerial gpsS(RXPIN, TXPIN);
-HardwareSerial & hx1 = Serial; // an alias for pins 0/1
 
 //Internal Temp sensor
 #include <Wire.h>
@@ -74,18 +72,21 @@ static const uint32_t VALID_POS_TIMEOUT = 2000;  // ms
 // Module variables
 static int32_t next_aprs = 0;
 
+
+#include <EEPROM.h>
+
+//SD Reader Writer
+#include <SPI.h>
+#include <SD.h>
+
 void setup(){
   pinMode(LED_PIN, OUTPUT);
   pin_write(LED_PIN, LOW);
   
-  if (!bmp.begin()) {
-  Serial.println("Could not find a valid BMP085 sensor, check wiring!");
-  while (1) {}
-  }
+  bmp.begin();
 
   afsk_setup();
   gpsS.begin(9600);
-  hx1.begin(9600);
 }
 
 void loop(){
@@ -99,29 +100,27 @@ void loop(){
     if (gpsUpdates >= 2) {
       // Wait for two full GPS updates to come in before we use them
 
-      //Check pressure the flight day in http://weather.noaa.gov/weather/current/LEMD.html
-      //We take the value between parenthesis. If pressure is 1013 write in readAltitude
-      //this value multiplied by 100
-      APRSPacket packet{fix.latitude(),
-                        fix.longitude(),
-                        fix.altitude(),
-                        bmp.readAltitude(101300),
-                        fix.speed(),
-                        fix.heading(),
-                        externalTemp(&ds),
-                        bmp.readTemperature(),
-                        bmp.readPressure() };
-
-      packet.testSendAprsWithChars(&hx1);
-
       // Time for another APRS frame?
       next_aprs++;
       if (next_aprs >= APRS_PERIOD) {
         next_aprs  = 0; // reset for next time
         gpsUpdates = 0;
 
-        aprs_send("gps_time", "gps_aprs_lat", "gps_aprs_lon", 100, 101, 102, "int_temperature",
-        "ext_temperature", "sensors_vin");
+
+      //Check pressure the flight day in http://weather.noaa.gov/weather/current/LEMD.html
+      //We take the value between parenthesis. If pressure is 1013 write in readAltitude
+      //this value multiplied by 100
+      APRSPacket packet(fix.latitude(),
+                        fix.longitude(),
+                        bmp.readAltitude(101300),
+                        fix.speed(),
+                        fix.heading(),
+                        externalTemp(),
+                        bmp.readTemperature() );
+//        packet.writeToSD();
+        
+        packet.aprs_send();
+
         next_aprs += APRS_PERIOD * 1000L;
         while (afsk_flush()) {
           power_save();
@@ -136,7 +135,7 @@ float lastExtTemp = 0;
 
 //externalTemp uses DS18B20 to return a floating point value representing the
 //external temperature in celsius
-float externalTemp(OneWire *ds){
+float externalTemp(){
   byte i;
   byte present = 0;
   byte type_s;
@@ -144,30 +143,29 @@ float externalTemp(OneWire *ds){
   byte addr[8];
   float celsius, fahrenheit;
   
-  if ( !ds->search(addr)) {
-    ds->reset_search();
-    delay(250);
+  if ( !ds.search(addr)) {
+    ds.reset_search();
+    // delay(250);
     return lastExtTemp;
   }
 
   if (OneWire::crc8(addr, 7) != addr[7]) {
-      hx1.println("CRC is not valid!");
       return -100.0;
   }
   type_s = 0; 
 
-  ds->reset();
-  ds->select(addr);
-  ds->write(0x44, 1);        // start conversion, with parasite power on at the end
+  ds.reset();
+  ds.select(addr);
+  ds.write(0x44, 1);        // start conversion, with parasite power on at the end
   
 //  delay(1000);     // maybe 750ms is enough, maybe not
   
-  present = ds->reset();
-  ds->select(addr);    
-  ds->write(0xBE);         // Read Scratchpad
+  present = ds.reset();
+  ds.select(addr);    
+  ds.write(0xBE);         // Read Scratchpad
 
   for ( i = 0; i < 9; i++) {           // we need 9 bytes
-    data[i] = ds->read();
+    data[i] = ds.read();
   }
 
   // Convert the data to actual temperature

@@ -1,33 +1,3 @@
-/* trackuino copyright (C) 2010  EA5HAV Javi
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
-
-/* Credit to:
- *
- * Michael Smith for his Example of Audio generation with two timers and PWM:
- * http://www.arduino.cc/playground/Code/PCMAudio
- *
- * Ken Shirriff for his Great article on PWM:
- * http://arcfn.com/2009/07/secrets-of-arduino-pwm.html 
- *
- * The large group of people who created the free AVR tools.
- * Documentation on interrupts:
- * http://www.nongnu.org/avr-libc/user-manual/group__avr__interrupts.html
- */
-
 #include "config.h"
 #include "afsk_avr.h"
 #include "pin.h"
@@ -193,29 +163,16 @@ bool afsk_flush()
       
     phase += phase_delta;
     uint8_t s = afsk_read_sample((phase >> 7) & (TABLE_SIZE - 1));
-
-#ifdef DEBUG_AFSK
-    Serial.print((uint16_t)s);
-    Serial.print('/');
-#endif
   
 #if PRE_EMPHASIS == 1
     if (phase_delta == PHASE_DELTA_1200)
       s = s / 2 + 64;
 #endif
 
-#ifdef DEBUG_AFSK
-    Serial.print((uint16_t)s);
-    Serial.print(' ');
-#endif
-
     afsk_fifo_in_safe(s);
   
     current_sample_in_baud += (1 << 8);
     if (current_sample_in_baud >= SAMPLES_PER_BAUD) {
-#ifdef DEBUG_AFSK
-      Serial.println();
-#endif
       packet_pos++;
       current_sample_in_baud -= SAMPLES_PER_BAUD;
     }
@@ -236,14 +193,4 @@ AFSK_ISR
   }
   afsk_clear_interrupt_flag();
 }
-
-#ifdef DEBUG_MODEM
-void afsk_debug()
-{
-  Serial.print("fifo overruns=");
-  Serial.println(sample_overruns);
-
-  sample_overruns = 0;
-}
-#endif
 
