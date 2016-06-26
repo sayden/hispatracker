@@ -1,32 +1,5 @@
-/* trackuino copyright (C) 2010  EA5HAV Javi
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
-
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
-
-
-// --------------------------------------------------------------------------
-// THIS IS THE TRACKUINO FIRMWARE CONFIGURATION FILE. YOUR CALLSIGN AND
-// OTHER SETTINGS GO HERE.
-//
-// NOTE: all pins are Arduino based, not the Atmega chip. Mapping:
-// http://www.arduino.cc/en/Hacking/PinMapping
-// --------------------------------------------------------------------------
-
 
 // --------------------------------------------------------------------------
 // APRS config (aprs.c)
@@ -98,7 +71,7 @@
 // PWM, so the only two options are pins 3 and 11.
 // Pin 11 doubles as MOSI, so I suggest using pin 3 for PWM and leave 11 free
 // in case you ever want to interface with an SPI device.
-#define AUDIO_PIN       11
+#define AUDIO_PIN       3
 
 // Pre-emphasize the 2200 tone by 6 dB. This is actually done by 
 // de-emphasizing the 1200 tone by 6 dB and it might greatly improve
@@ -165,67 +138,9 @@
 // Voltage meter analog pin
 #define VMETER_PIN      2
 
-// --------------------------------------------------------------------------
-// Buzzer config (buzzer.cpp)
-// --------------------------------------------------------------------------
-
-// Type of buzzer (0=active, 1=passive). An active buzzer is driven by a
-// DC voltage. A passive buzzer needs a PWM signal.
-#define BUZZER_TYPE             0
-
-// When using a passive buzzer, specify the PWM frequency here. Choose one
-// that maximizes the volume according to the buzzer's datasheet. Not all
-// the frequencies are valid, check out the buzzer_*.cpp code. On Arduino,
-// it must be between L and 65535, where L = F_CPU / 65535 and F_CPU is the
-// clock rate in hertzs. For 16 MHz Arduinos, this gives a lower limit of 
-// 245 Hz.
-#define BUZZER_FREQ             895     // Hz
-
-// These are the number of seconds the buzzer will stay on/off alternately
-#define BUZZER_ON_TIME          1       // secs
-#define BUZZER_OFF_TIME         2       // secs
-
-// This option disables the buzzer above BUZZER_ALTITUDE meters. This is a
-// float value, so make it really high (eg. 1000000.0 = 1 million meters)
-// if you want it to never stop buzzing.
-#define BUZZER_ALTITUDE         3000.0  // meters (1 ft = 0.3048 m)
-
-// The options here are pin 9 or 10
-#define BUZZER_PIN              9
-
-// --------------------------------------------------------------------------
-// Debug
-// --------------------------------------------------------------------------
-
-// This is the LED pin (13 on Arduinos). The LED will be on while the AVR is
-// running and off while it's sleeping, so its brightness gives an indication
+// LED pin (13 on Arduinos). On while is running and off while sleeping
 // of the CPU activity.
 #define LED_PIN                 13
-
-// Debug info includes printouts from different modules to aid in testing and
-// debugging.
-//
-// Some of the DEBUG modes will cause invalid modulation, so do NOT forget
-// to turn them off when you put this to real use.
-//
-// Particularly the DEBUG_AFSK will print every PWM sample out the serial
-// port, causing extreme delays in the actual AFSK transmission.
-// 
-// 1. To properly receive debug information, only connect the Arduino RX pin 
-//    to the GPS TX pin, and leave the Arduino TX pin disconnected. 
-//
-// 2. On the serial monitor, set the baudrate to GPS_BAUDRATE (above),
-//    usually 9600.
-//
-// 3. When flashing the firmware, disconnect the GPS from the RX pin or you
-//    will get errors.
-
-// #define DEBUG_GPS    // GPS sentence dump and checksum validation
-// #define DEBUG_AX25   // AX.25 frame dump
-// #define DEBUG_MODEM  // Modem ISR overrun and profiling
-// #define DEBUG_AFSK   // AFSK (modulation) output
-// #define DEBUG_RESET  // AVR reset
-// #define DEBUG_SENS   // Sensors
 
 
 #endif
