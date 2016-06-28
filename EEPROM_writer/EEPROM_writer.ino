@@ -56,6 +56,10 @@ void setup() {
   /* 103 */ char s16[] = "Tex=";  //5
   EEPROM.put(addr, s16);
   addr += sizeof(s16);
+
+  /* 108 */ char s17[] = "PRE=";  //5
+  EEPROM.put(addr, s17);
+  addr += sizeof(s17);
   
   addr=0;
   Serial.begin(9600);

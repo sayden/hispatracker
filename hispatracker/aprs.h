@@ -7,6 +7,8 @@
 
 #include <EEPROM.h>
 //SD Reader Writer
+#define USE_SPI_LIB
+//SD Reader Writer
 #include <SPI.h>
 #include <SD.h>
 
@@ -14,12 +16,12 @@ class APRSPacket {
     public:
 	char latitude[12];
 	char longitude[12];
-	char altitude2[8];
-	char speed[8];
-	char heading[12];
-	char extTemp[8];
-	char intTemp[8];
-	File myFile;
+	char altitude2[6];
+	char speed[6];
+	char heading[4];
+	char extTemp[6];
+	char intTemp[6];
+	char pressure[6];
 
 	void aprs_send();
 	void writeToSD();
@@ -30,7 +32,8 @@ class APRSPacket {
 	  float _speed,
 	  float _heading,
 	  float _extTemp,
-	  float _intTemp);
+	  float _intTemp,
+	  int32_t pressure);
 };
 
 

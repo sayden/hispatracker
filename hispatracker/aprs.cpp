@@ -3,201 +3,162 @@
 #include "aprs.h"
 #include <stdio.h>
 #include <stdlib.h>
+
 #if (ARDUINO + 1) >= 100
 #  include <Arduino.h>
 #else
+
 #  include <WProgram.h>
+
 #endif
 
-
 // Module functions
-float meters_to_feet(float m)
-{
-  // 10000 ft = 3048 m
-  return m / 0.3048;
+float meters_to_feet(float m) {
+    // 10000 ft = 3048 m
+    return m / 0.3048;
 }
-
-// void aprs_send_header_mesage(char header[], char message[]){
-//  ax25_send_header(header, sizeof(header));
-//  ax25_send_byte('/');                // Report w/ timestamp, no APRS messaging. $ = NMEA raw data
-//  ax25_send_string(message);
-//  ax25_send_byte(' ');
-//  ax25_send_footer();
-
-//  ax25_flush_frame();
-// }
-
-// void aprs_send_raw(char message[]){
-//  ax25_send_header();
-//  ax25_send_string(message);
-//  ax25_send_byte(' ');
-//  ax25_send_footer();
-
-//  ax25_flush_frame();
-// }
-
-
-// void APRSPacket::testSendAprsWithChars(HardwareSerial *hx1) {
-//     APRSCharPacket packet = this->getAPRScharPacket();
-
-//     hx1->print("LAT=");
-//     hx1->print(packet.latitude);
-      
-//     hx1->print(" LON=");
-//     hx1->print(packet.longitude);
-      
-//     hx1->print("  SPEED=");
-//     hx1->print(packet.speed);
-//     hx1->print("kmh ");
-      
-//     hx1->print(" ALT=");
-//     hx1->print(packet.altitude);
-//     hx1->print("m ");
-      
-//     hx1->print("ALT2=");
-//     hx1->print(packet.altitude2);
-//     hx1->print("m ");
-      
-//     hx1->print(" HEA=");
-//     hx1->print(packet.heading);
-//     hx1->print("deg ");
-            
-//     hx1->print(" TMPe=");
-//     hx1->print(packet.extTemp);
-//     hx1->print("c ");
-      
-//     hx1->print("TMPi=");
-//     hx1->print(packet.intTemp);
-//     hx1->print("c ");
-      
-//     hx1->print("PRES=");
-//     hx1->print(packet.pressure);
-//     hx1->print("Pa");
-    
-//     hx1->println("");
-// }
 
 APRSPacket::APRSPacket(float _latitude,
-      float _longitude,
-      float _altitude2,
-      float _speed,
-      float _heading,
-      float _extTemp,
-      float _intTemp)
-{
+                       float _longitude,
+                       float _altitude2,
+                       float _speed,
+                       float _heading,
+                       float _extTemp,
+                       float _intTemp,
+                       int32_t _pressure) {
 
     dtostrf(_latitude, 8, 6, this->latitude);
+    this->latitude[11] = '\0';
+
     dtostrf(_longitude, 8, 6, this->longitude);
+    this->longitude[11] = '\0';
+
     dtostrf(_altitude2, 3, 0, this->altitude2);
+    this->altitude2[5] = '\0';
+
     dtostrf(_speed, 1, 2, this->speed);
+    this->speed[5] = '\0';
+
     dtostrf(_heading, 1, 0, this->heading);
+    this->heading[3] = '\0';
+
     dtostrf(_extTemp, 5, 2, this->extTemp);
+    this->extTemp[5] = '\0';
+
     dtostrf(_intTemp, 5, 2, this->intTemp);
+    this->intTemp[5] = '\0';
+
+    sprintf(this->pressure, "%li", _pressure);
+    this->pressure[5] = '\0';
 }
 
 
-void APRSPacket::writeToSD(){
-  delay(100);
-  
-  // open the file. note that only one file can be open at a time,
-  // so you have to close this one before opening another.
-  this->myFile = SD.open("a.txt", FILE_WRITE);
-  if (this->myFile) {
-    char sep = EEPROM.read(43);
-  
+void APRSPacket::writeToSD() {
+
+    // open the file. note that only one file can be open at a time,
+    // so you have to close this one before opening another.
+    File myFile = SD.open("LOGL.TXT", FILE_WRITE);
+    if (myFile) {
+
+        char sep = '_';
+
+        myFile.print(this->latitude);
+        myFile.print(sep);
+
+        myFile.print(this->longitude);
+        myFile.print(sep);
+
+        myFile.print(this->heading);
+        myFile.print(sep);
+
+        myFile.print(this->speed);
+        myFile.print(sep);
+
+        myFile.print(this->altitude2);
+        myFile.print(sep);
+
+        myFile.print(this->intTemp);
+        myFile.print(sep);
+
+        myFile.print(this->extTemp);
+        myFile.print(sep);
+
+        myFile.println(this->pressure);
+
+        myFile.close();
+    }
+}
+
+void APRSPacket::aprs_send() {
+    char s1[4], s2[4], s3[5];
+    for(int i = 0; i<=4; i++){
+        s3[i] = EEPROM.read(i+10);
+        if (i < 4) {
+            s1[i] = EEPROM.read(i);
+            s2[i] = EEPROM.read(i+5);
+        }
+    }
+
+    const struct s_address addresses[] = {
+            {*s1, 11},                           // Destination callsign
+            {*s2,0},                             // Source callsign (-11 = balloon, -9 = car)
+            {*s3, 1},                            // Digi1 (first digi in the chain)
+    };
+
+    byte separator = 43;
+
+    char sep = EEPROM.read(separator);
     char temp[5];
-    EEPROM.get(73, temp);
-    this->myFile.print(temp);
-    this->myFile.print(this->latitude);
-    this->myFile.print(sep);
-  
-    EEPROM.get(78, temp);
-    this->myFile.print(temp);
-    this->myFile.print(this->longitude);
-    this->myFile.print(sep);
-  
-    EEPROM.get(83,temp);
-    this->myFile.print(temp);
-    this->myFile.print(this->heading);             // Course (degrees)
-    this->myFile.print(sep);
-  
-    EEPROM.get(88,temp);
-    this->myFile.print(temp); 
-    this->myFile.print(this->speed);             // speed (knots)
-    this->myFile.print(sep);
-  
-    EEPROM.get(93,temp);
-    this->myFile.print(temp);                     // Altitude (feet). Goes anywhere in the comment area
-    this->myFile.print(this->altitude2);
-    this->myFile.print(sep);
-  
-    EEPROM.get(98,temp);
-    this->myFile.print(temp);
-    this->myFile.print(this->intTemp);
-    this->myFile.print(sep);
-  
-    EEPROM.get(103,temp);
-    this->myFile.print(temp);
-    this->myFile.print(this->extTemp);
-    this->myFile.println(sep);
-    
-    this->myFile.flush();
-    this->myFile.close();
-  }
 
-  delay(100);
-}
+    byte heading = 83;
+    byte speed = 88;
+    byte altitude = 93;
+    byte internalTemp = 98;
+    byte pressure = 108;
+    byte externalTemp = 103;
 
-void APRSPacket::aprs_send(){
- 
-  const struct s_address addresses[] = { 
-    {{ EEPROM.read(0), EEPROM.read(1), EEPROM.read(2), EEPROM.read(3)}, 11},                           // Destination callsign
-    {{ EEPROM.read(5), EEPROM.read(6), EEPROM.read(7), EEPROM.read(8)}, 0},                            // Source callsign (-11 = balloon, -9 = car)
-    {{ EEPROM.read(10), EEPROM.read(11), EEPROM.read(12), EEPROM.read(13), EEPROM.read(14)}, 1}                             // Digi1 (first digi in the chain)
-  };
+            ax25_send_header(addresses, sizeof(addresses) / sizeof(s_address));
+    ax25_send_byte(sep);                // Report w/ timestamp, no APRS messaging. $ = NMEA raw data
+    ax25_send_string(this->latitude);     // Lat: 38deg and 22.20 min (.20 are NOT seconds, but 1/100th of minutes)
+    ax25_send_byte(sep);                // Symbol table
 
-  char sep = EEPROM.read(43);
-  char temp[5];
+    ax25_send_string(this->longitude);     // Lon: 000deg and 25.80 min
+    ax25_send_byte(EEPROM.read(14));                // Symbol: O=balloon, -=QTH
+    ax25_send_byte(sep);
 
-  ax25_send_header(addresses, sizeof(addresses)/sizeof(s_address));
-  ax25_send_byte(sep);                // Report w/ timestamp, no APRS messaging. $ = NMEA raw data
-  ax25_send_string(this->latitude);     // Lat: 38deg and 22.20 min (.20 are NOT seconds, but 1/100th of minutes)
-  ax25_send_byte(sep);                // Symbol table
+    EEPROM.get(heading, temp);
+    ax25_send_string(temp);
+    ax25_send_string(this->heading);             // Course (degrees)
+    ax25_send_byte(sep);
 
-  ax25_send_string(this->longitude);     // Lon: 000deg and 25.80 min
-  ax25_send_byte(EEPROM.read(14));                // Symbol: O=balloon, -=QTH
-  ax25_send_byte(sep);
+    EEPROM.get(speed, temp);
+    ax25_send_string(temp);
+    ax25_send_string(this->speed);             // speed (knots)
+    ax25_send_byte(sep);
 
-  EEPROM.get(83,temp);
-  ax25_send_string(temp);
-  ax25_send_string(this->heading);             // Course (degrees)
-  ax25_send_byte(sep);
+    EEPROM.get(altitude, temp);
+    ax25_send_string(temp);                     // Altitude (feet). Goes anywhere in the comment area
+    ax25_send_string(this->altitude2);
+    ax25_send_byte(sep);
 
-  EEPROM.get(88,temp);
-  ax25_send_string(temp); 
-  ax25_send_string(this->speed);             // speed (knots)
-  ax25_send_byte(sep);
+    EEPROM.get(internalTemp, temp);
+    ax25_send_string(temp);
+    ax25_send_string(this->intTemp);
+    ax25_send_byte(sep);
 
-  EEPROM.get(93,temp);
-  ax25_send_string(temp);                     // Altitude (feet). Goes anywhere in the comment area
-  ax25_send_string(this->altitude2);
-  ax25_send_byte(sep);
+    EEPROM.get(pressure, temp);
+    ax25_send_string(temp);
+    ax25_send_string(this->pressure);
+    ax25_send_byte(sep);
 
-  EEPROM.get(98,temp);
-  ax25_send_string(temp);
-  ax25_send_string(this->intTemp);
-  ax25_send_byte(sep);
+    EEPROM.get(externalTemp, temp);
+    ax25_send_string(temp);
+    ax25_send_string(this->extTemp);
+    ax25_send_byte(sep);
 
-  EEPROM.get(103,temp);
-  ax25_send_string(temp);
-  ax25_send_string(this->extTemp);
-  ax25_send_byte(sep);
+    ax25_send_footer();
 
-  ax25_send_byte(sep);     // Comment
-
-  ax25_send_footer();
-
-  ax25_flush_frame();                 // Tell the modem to go
+    ax25_flush_frame();                 // Tell the modem to go
 }
 
 // Exported functions
