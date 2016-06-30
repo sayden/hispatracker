@@ -11,8 +11,8 @@
 
 class APRSPacket {
     public:
-	char latitude[12];
-	char longitude[12];
+	char latitude[9];
+	char longitude[10];
 	char altitude[6];
 	char speed[6];
 	char heading[4];
@@ -22,8 +22,10 @@ class APRSPacket {
 	void aprs_send();
 	// void writeToSD();
 
-	APRSPacket(float _latitude,
-	  float _longitude,
+	void setLatitude(char latitude[9]);
+	void setLongitude(char longitude[10]);
+
+	APRSPacket(
 	  float _altitude,
 	  float _speed,
 	  float _heading,

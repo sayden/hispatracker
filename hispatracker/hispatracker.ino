@@ -92,17 +92,22 @@ void loop() {
     }
 
   if (millis() >= next_aprs) {
+    char latitude[9];
+    snprintf(latitude, 9, "%04d.%02u%c", fix.latitudeDMS.degrees, truncate(fix.latitudeDMS.seconds_frac, 2), fix.latitudeDMS.NS() );
+
+    char longitude[10];
+    snprintf(longitude, 9, "%05d.%02u%c", fix.longitudeDMS.degrees, truncate(fix.longitudeDMS.seconds_frac, 2), fix.longitudeDMS.EW() );
   
     //Check pressure the flight day in http://weather.noaa.gov/weather/current/LEMD.html
     //We take the value between parenthesis. If pressure is 1013 write in readAltitude
     //this value multiplied by 100
-    APRSPacket packet(fix.latitude(),
-                      fix.longitude(),
-                      bmp.readAltitude(101900),
+    APRSPacket packet(bmp.readAltitude(101900),
                       fix.speed(),
                       fix.heading(),
                       bmp.readTemperature(),
                       bmp.readPressure());
+    packet.setLatitude(latitude);
+    packet.setLongitude(longitude);
   
     packet.aprs_send();
   
@@ -112,4 +117,17 @@ void loop() {
   
     next_aprs = millis() + 5000l;
   }
+}
+
+//truncate takes a uint16_t number and returns its "amount" most significant
+//number: For example from 159 and 2 it will return 15 or from 14231 and 3 
+//it will return 142
+uint8_t truncate(uint16_t n, uint8_t amount) {
+    if (n > pow(10, amount) && n < pow(10, amount + 1)) {
+        return (uint8_t) (round(n / 10.0));
+    } else if (n > pow(10, amount + 1)) {
+        return truncate((uint16_t) round(n / 10), (uint8_t) (amount - 1));
+    } else {
+        return (uint8_t) n;
+    }
 }

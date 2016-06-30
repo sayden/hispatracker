@@ -19,19 +19,11 @@ float meters_to_feet(float m) {
     return m / 0.3048;
 }
 
-APRSPacket::APRSPacket( float _latitude,
-                        float _longitude,
-                        float _altitude,
+APRSPacket::APRSPacket( float _altitude,
                         float _speed,
                         float _heading,
                         float _intTemp,
                         int32_t _pressure) {
-
-    dtostrf(_latitude, 8, 6, this->latitude);
-    this->latitude[11] = '\0';
-
-    dtostrf(_longitude, 8, 6, this->longitude);
-    this->longitude[11] = '\0';
 
     dtostrf(_altitude, 3, 0, this->altitude);
     this->altitude[5] = '\0';
@@ -49,6 +41,14 @@ APRSPacket::APRSPacket( float _latitude,
     this->pressure[5] = '\0';
 }
 
+
+void APRSPacket::setLatitude(char _latitude[9]){
+    strcpy(this->latitude, _latitude);
+}
+void APRSPacket::setLongitude(char _longitude[10]){
+    strcpy(this->longitude, _longitude);
+    // this->longitude = _longitude;
+}
 
 // void APRSPacket::writeToSD() {
 
