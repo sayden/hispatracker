@@ -48,9 +48,7 @@
 #include "power.h"
 
 //External temp sensor
-#include <OneWire.h>
-
-OneWire ds(2);  // on pin 10 (a 4.7K resistor is necessary)
+//#include <OneWire.h>
 
 //GPS
 #include <NMEAGPS.h>
@@ -64,111 +62,54 @@ NeoSWSerial gpsS(RXPIN, TXPIN);
 
 //Internal Temp sensor
 #include <Wire.h>
-#include "Adafruit_BMP085.h"  // Adafruit BMP085 library
+#include <Adafruit_BMP085.h>  // Adafruit BMP085 library
 
 Adafruit_BMP085 bmp;
 
-#include <EEPROM.h>
-
 unsigned long next_aprs = 0;
+bool switched = 1;
 
 void setup() {
     pinMode(LED_PIN, OUTPUT);
-    pin_write(LED_PIN, HIGH);
-    pinMode(4, OUTPUT); //SD Card pin
 
     bmp.begin();
 
     afsk_setup();
+    
     gpsS.begin(9600);
 
-    SD.begin(4);
-
-    next_aprs = millis() + 1000l;
+    next_aprs = millis() + 5000l;
 }
+
 
 void loop() {
+  pin_write(LED_PIN, switched);
     if (gps.available(gpsS)) {
         fix = gps.read();
-        gpsUpdates++;
+        switched = 0;
+    } else {
+      switched = 1;
     }
 
-    if (millis() >= next_aprs) {
-        if (gpsUpdates >= 2) {
-            gpsUpdates = 0;
-
-            //Check pressure the flight day in http://weather.noaa.gov/weather/current/LEMD.html
-            //We take the value between parenthesis. If pressure is 1013 write in readAltitude
-            //this value multiplied by 100
-            APRSPacket packet(fix.latitude(),
-                              fix.longitude(),
-                              bmp.readAltitude(101900),
-                              fix.speed(),
-                              fix.heading(),
-                              externalTemp(),
-                              bmp.readTemperature(),
-                              bmp.readPressure());
-
-            packet.writeToSD();
-            delay(200);
-
-            packet.aprs_send();
-
-            while (afsk_flush()) {
-                power_save();
-            }
-
-            next_aprs = millis() + 1000l;
-        }
+  if (millis() >= next_aprs) {
+  
+    //Check pressure the flight day in http://weather.noaa.gov/weather/current/LEMD.html
+    //We take the value between parenthesis. If pressure is 1013 write in readAltitude
+    //this value multiplied by 100
+    APRSPacket packet(fix.latitude(),
+                      fix.longitude(),
+                      bmp.readAltitude(101900),
+                      fix.speed(),
+                      fix.heading(),
+                      bmp.readTemperature(),
+                      bmp.readPressure());
+  
+    packet.aprs_send();
+  
+    while (afsk_flush()) {
+      power_save();
     }
-}
-
-
-float lastExtTemp = 0;
-
-//externalTemp uses DS18B20 to return a floating point value representing the
-//external temperature in celsius
-float externalTemp() {
-    byte i;
-    byte present = 0;
-    byte type_s;
-    byte data[12];
-    byte addr[8];
-    float celsius, fahrenheit;
-
-    if (!ds.search(addr)) {
-        ds.reset_search();
-        return lastExtTemp;
-    }
-
-    if (OneWire::crc8(addr, 7) != addr[7]) {
-        return -100.0;
-    }
-
-    ds.reset();
-    ds.select(addr);
-    ds.write(0x44, 1);        // start conversion, with parasite power on at the end
-
-//  delay(1000);     // maybe 750ms is enough, maybe not
-
-    present = ds.reset();
-    ds.select(addr);
-    ds.write(0xBE);         // Read Scratchpad
-
-    for (i = 0; i < 9; i++) {           // we need 9 bytes
-        data[i] = ds.read();
-    }
-
-    // Convert the data to actual temperature
-    int16_t raw = (data[1] << 8) | data[0];
-    byte cfg = (data[4] & 0x60);
-    // at lower res, the low bits are undefined, so let's zero them
-    if (cfg == 0x00) raw = raw & ~7;  // 9 bit resolution, 93.75 ms
-    else if (cfg == 0x20) raw = raw & ~3; // 10 bit res, 187.5 ms
-    else if (cfg == 0x40) raw = raw & ~1; // 11 bit res, 375 ms
-    //// default is 12 bit resolution, 750 ms conversion time
-
-    lastExtTemp = (float) raw / 16.0;
-
-    return lastExtTemp;
+  
+    next_aprs = millis() + 5000l;
+  }
 }

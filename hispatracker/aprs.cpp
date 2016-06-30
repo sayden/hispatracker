@@ -12,20 +12,20 @@
 
 #endif
 
+
 // Module functions
 float meters_to_feet(float m) {
     // 10000 ft = 3048 m
     return m / 0.3048;
 }
 
-APRSPacket::APRSPacket(float _latitude,
-                       float _longitude,
-                       float _altitude2,
-                       float _speed,
-                       float _heading,
-                       float _extTemp,
-                       float _intTemp,
-                       int32_t _pressure) {
+APRSPacket::APRSPacket( float _latitude,
+                        float _longitude,
+                        float _altitude,
+                        float _speed,
+                        float _heading,
+                        float _intTemp,
+                        int32_t _pressure) {
 
     dtostrf(_latitude, 8, 6, this->latitude);
     this->latitude[11] = '\0';
@@ -33,17 +33,14 @@ APRSPacket::APRSPacket(float _latitude,
     dtostrf(_longitude, 8, 6, this->longitude);
     this->longitude[11] = '\0';
 
-    dtostrf(_altitude2, 3, 0, this->altitude2);
-    this->altitude2[5] = '\0';
+    dtostrf(_altitude, 3, 0, this->altitude);
+    this->altitude[5] = '\0';
 
     dtostrf(_speed, 1, 2, this->speed);
     this->speed[5] = '\0';
 
     dtostrf(_heading, 1, 0, this->heading);
     this->heading[3] = '\0';
-
-    dtostrf(_extTemp, 5, 2, this->extTemp);
-    this->extTemp[5] = '\0';
 
     dtostrf(_intTemp, 5, 2, this->intTemp);
     this->intTemp[5] = '\0';
@@ -53,107 +50,76 @@ APRSPacket::APRSPacket(float _latitude,
 }
 
 
-void APRSPacket::writeToSD() {
+// void APRSPacket::writeToSD() {
 
-    // open the file. note that only one file can be open at a time,
-    // so you have to close this one before opening another.
-    File myFile = SD.open("LOGL.TXT", FILE_WRITE);
-    if (myFile) {
+//    // open the file. note that only one file can be open at a time,
+//    // so you have to close this one before opening another.
+//    File myFile = this->SD->open("LOGP.TXT", FILE_WRITE);
 
-        char sep = '_';
+//    char sep = '_';
 
-        myFile.print(this->latitude);
-        myFile.print(sep);
+//    myFile.print(this->latitude);
+//    myFile.print(sep);
 
-        myFile.print(this->longitude);
-        myFile.print(sep);
+//    myFile.print(this->longitude);
+//    myFile.print(sep);
 
-        myFile.print(this->heading);
-        myFile.print(sep);
+//    myFile.print(this->heading);
+//    myFile.print(sep);
 
-        myFile.print(this->speed);
-        myFile.print(sep);
+//    myFile.print(this->speed);
+//    myFile.print(sep);
 
-        myFile.print(this->altitude2);
-        myFile.print(sep);
+//    myFile.print(this->altitude);
+//    myFile.print(sep);
 
-        myFile.print(this->intTemp);
-        myFile.print(sep);
+//    myFile.print(this->intTemp);
+//    myFile.print(sep);
 
-        myFile.print(this->extTemp);
-        myFile.print(sep);
+//    myFile.println(this->pressure);
 
-        myFile.println(this->pressure);
-
-        myFile.close();
-    }
-}
+//    myFile.close();
+// }
 
 void APRSPacket::aprs_send() {
-    char s1[4], s2[4], s3[5];
-    for(int i = 0; i<=4; i++){
-        s3[i] = EEPROM.read(i+10);
-        if (i < 4) {
-            s1[i] = EEPROM.read(i);
-            s2[i] = EEPROM.read(i+5);
-        }
-    }
 
-    const struct s_address addresses[] = {
-            {*s1, 11},                           // Destination callsign
-            {*s2,0},                             // Source callsign (-11 = balloon, -9 = car)
-            {*s3, 1},                            // Digi1 (first digi in the chain)
+    const struct s_address addresses[] = { 
+      {D_CALLSIGN, D_CALLSIGN_ID},  // Destination callsign
+      {S_CALLSIGN, S_CALLSIGN_ID},  // Source callsign (-11 = balloon, -9 = car)
+      {DIGI_PATH1, DIGI_PATH1_TTL}, // Digi1 (first digi in the chain)
     };
 
-    byte separator = 43;
+    char sep = '/';
 
-    char sep = EEPROM.read(separator);
-    char temp[5];
-
-    byte heading = 83;
-    byte speed = 88;
-    byte altitude = 93;
-    byte internalTemp = 98;
-    byte pressure = 108;
-    byte externalTemp = 103;
-
-            ax25_send_header(addresses, sizeof(addresses) / sizeof(s_address));
+    ax25_send_header(addresses, sizeof(addresses) / sizeof(s_address));
     ax25_send_byte(sep);                // Report w/ timestamp, no APRS messaging. $ = NMEA raw data
     ax25_send_string(this->latitude);     // Lat: 38deg and 22.20 min (.20 are NOT seconds, but 1/100th of minutes)
+    ax25_send_byte('N');                
     ax25_send_byte(sep);                // Symbol table
 
     ax25_send_string(this->longitude);     // Lon: 000deg and 25.80 min
-    ax25_send_byte(EEPROM.read(14));                // Symbol: O=balloon, -=QTH
+    ax25_send_byte(sep);
+    ax25_send_byte('O');                // Symbol: O=balloon, -=QTH
     ax25_send_byte(sep);
 
-    EEPROM.get(heading, temp);
-    ax25_send_string(temp);
+    ax25_send_string("HEA=");
     ax25_send_string(this->heading);             // Course (degrees)
     ax25_send_byte(sep);
 
-    EEPROM.get(speed, temp);
-    ax25_send_string(temp);
+    ax25_send_string("SPE=");
     ax25_send_string(this->speed);             // speed (knots)
     ax25_send_byte(sep);
 
-    EEPROM.get(altitude, temp);
-    ax25_send_string(temp);                     // Altitude (feet). Goes anywhere in the comment area
-    ax25_send_string(this->altitude2);
+    ax25_send_string("ALT=");                     // Altitude (feet). Goes anywhere in the comment area
+    ax25_send_string(this->altitude);
     ax25_send_byte(sep);
 
-    EEPROM.get(internalTemp, temp);
-    ax25_send_string(temp);
+    ax25_send_string("TEM=");
     ax25_send_string(this->intTemp);
     ax25_send_byte(sep);
 
-    EEPROM.get(pressure, temp);
-    ax25_send_string(temp);
+    ax25_send_string("PRE=");
     ax25_send_string(this->pressure);
-    ax25_send_byte(sep);
-
-    EEPROM.get(externalTemp, temp);
-    ax25_send_string(temp);
-    ax25_send_string(this->extTemp);
     ax25_send_byte(sep);
 
     ax25_send_footer();
