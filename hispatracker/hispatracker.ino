@@ -54,9 +54,9 @@
 #include <NMEAGPS.h>
 #include <NeoSWSerial.h>
 
-static NMEAGPS gps;  // The parsing object
-static gps_fix fix;  // GPS fields are stored here as they are parsed
-static uint8_t gpsUpdates = 0; // how many updates since power_save
+NMEAGPS gps;  // The parsing object
+gps_fix fix;  // GPS fields are stored here as they are parsed
+uint8_t gpsUpdates = 0; // how many updates since power_save
 
 NeoSWSerial gpsS(RXPIN, TXPIN);
 
@@ -81,15 +81,15 @@ void setup() {
     next_aprs = millis() + 5000l;
 }
 
-uint8_t reads = 0;
-
-
 void loop() {
   if (gps.available(gpsS)) {
     fix = gps.read();
+    gpsUpdates++;
   }
 
-  if (millis() >= next_aprs) {
+  if (millis() >= next_aprs && gpsUpdates >= 2) {
+    gpsUpdates = 0;
+
     fix = gps.read();
     char latitude[9];
     snprintf(latitude, 9, "%02d%02d.%02u%c", fix.latitudeDMS.degrees, fix.latitudeDMS.minutes, truncate(fix.latitudeDMS.seconds_whole, 2), fix.latitudeDMS.NS() );

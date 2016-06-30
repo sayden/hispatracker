@@ -132,7 +132,7 @@ void APRSPacket::aprs_send() {
     char lon[12];
     dtostrf(this->latitudeF, 5, 8, lat);
     dtostrf(this->longitudeF, 5, 8, lon);
-    sprintf(temp, "%s-%s", lat, lon);
+    sprintf(temp, "%s_%s", lat, lon);
     ax25_send_string(temp);     
     ax25_send_string(" mariocaster@gmail.com");     // Comment
 
