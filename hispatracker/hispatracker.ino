@@ -67,10 +67,10 @@ NeoSWSerial gpsS(RXPIN, TXPIN);
 Adafruit_BMP085 bmp;
 
 unsigned long next_aprs = 0;
-bool switched = 1;
 
 void setup() {
     pinMode(LED_PIN, OUTPUT);
+    pin_write(LED_PIN, LOW);
 
     bmp.begin();
 
@@ -81,33 +81,39 @@ void setup() {
     next_aprs = millis() + 5000l;
 }
 
+uint8_t reads = 0;
+
 
 void loop() {
-  pin_write(LED_PIN, switched);
-    if (gps.available(gpsS)) {
-        fix = gps.read();
-        switched = 0;
-    } else {
-      switched = 1;
-    }
+  if (gps.available(gpsS)) {
+    fix = gps.read();
+  }
 
   if (millis() >= next_aprs) {
+    fix = gps.read();
     char latitude[9];
-    snprintf(latitude, 9, "%04d.%02u%c", fix.latitudeDMS.degrees, truncate(fix.latitudeDMS.seconds_frac, 2), fix.latitudeDMS.NS() );
+    snprintf(latitude, 9, "%02d%02d.%02u%c", fix.latitudeDMS.degrees, fix.latitudeDMS.minutes, truncate(fix.latitudeDMS.seconds_whole, 2), fix.latitudeDMS.NS() );
 
     char longitude[10];
-    snprintf(longitude, 9, "%05d.%02u%c", fix.longitudeDMS.degrees, truncate(fix.longitudeDMS.seconds_frac, 2), fix.longitudeDMS.EW() );
+    snprintf(longitude, 10, "%03d%02d.%02u%c", fix.longitudeDMS.degrees, fix.longitudeDMS.minutes, truncate(fix.longitudeDMS.seconds_whole, 2), fix.longitudeDMS.EW() );
+
+    char datetime[7];
+    snprintf(datetime, 7, "%02d%02d%02d", fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds);
   
     //Check pressure the flight day in http://weather.noaa.gov/weather/current/LEMD.html
     //We take the value between parenthesis. If pressure is 1013 write in readAltitude
     //this value multiplied by 100
-    APRSPacket packet(bmp.readAltitude(101900),
+    APRSPacket packet(datetime,
+                      bmp.readAltitude(101900),
                       fix.speed(),
                       fix.heading(),
                       bmp.readTemperature(),
                       bmp.readPressure());
+
     packet.setLatitude(latitude);
     packet.setLongitude(longitude);
+    packet.setLatitudeF(fix.latitude());
+    packet.setLongitudeF(fix.longitude());
   
     packet.aprs_send();
   

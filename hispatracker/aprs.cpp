@@ -19,11 +19,14 @@ float meters_to_feet(float m) {
     return m / 0.3048;
 }
 
-APRSPacket::APRSPacket( float _altitude,
+APRSPacket::APRSPacket( char _datetime[7],
+                        float _altitude,
                         float _speed,
                         float _heading,
                         float _intTemp,
                         int32_t _pressure) {
+
+    strcpy(this->datetime, _datetime);
 
     dtostrf(_altitude, 3, 0, this->altitude);
     this->altitude[5] = '\0';
@@ -42,12 +45,19 @@ APRSPacket::APRSPacket( float _altitude,
 }
 
 
+void APRSPacket::setLatitudeF(float _latitude){
+    this->latitudeF = _latitude;
+}
+void APRSPacket::setLongitudeF(float _longitude){
+    this->longitudeF = _longitude;
+}
+
+
 void APRSPacket::setLatitude(char _latitude[9]){
     strcpy(this->latitude, _latitude);
 }
 void APRSPacket::setLongitude(char _longitude[10]){
     strcpy(this->longitude, _longitude);
-    // this->longitude = _longitude;
 }
 
 // void APRSPacket::writeToSD() {
@@ -92,35 +102,39 @@ void APRSPacket::aprs_send() {
     char sep = '/';
 
     ax25_send_header(addresses, sizeof(addresses) / sizeof(s_address));
-    ax25_send_byte(sep);                // Report w/ timestamp, no APRS messaging. $ = NMEA raw data
-    ax25_send_string(this->latitude);     // Lat: 38deg and 22.20 min (.20 are NOT seconds, but 1/100th of minutes)
-    ax25_send_byte('N');                
+    ax25_send_string(this->datetime);         // 170915 = 17h:09m:15s zulu (not allowed in Status Reports)
+    ax25_send_byte('h');               // Report w/ timestamp, no APRS messaging. $ = NMEA raw data
+    ax25_send_string(this->latitude);     // Lat: 38deg and 22.20 min (.20 are NOT seconds, but 1/100th of minutes)             
     ax25_send_byte(sep);                // Symbol table
 
     ax25_send_string(this->longitude);     // Lon: 000deg and 25.80 min
-    ax25_send_byte(sep);
     ax25_send_byte('O');                // Symbol: O=balloon, -=QTH
-    ax25_send_byte(sep);
 
-    ax25_send_string("HEA=");
     ax25_send_string(this->heading);             // Course (degrees)
     ax25_send_byte(sep);
-
-    ax25_send_string("SPE=");
     ax25_send_string(this->speed);             // speed (knots)
     ax25_send_byte(sep);
 
-    ax25_send_string("ALT=");                     // Altitude (feet). Goes anywhere in the comment area
+    ax25_send_string("A=");                     // Altitude (feet). Goes anywhere in the comment area
     ax25_send_string(this->altitude);
     ax25_send_byte(sep);
 
-    ax25_send_string("TEM=");
+    ax25_send_string("Ti=");
     ax25_send_string(this->intTemp);
     ax25_send_byte(sep);
 
-    ax25_send_string("PRE=");
+    ax25_send_string("P=");
     ax25_send_string(this->pressure);
-    ax25_send_byte(sep);
+    ax25_send_byte(' ');
+
+    char temp[20];
+    char lat[12];
+    char lon[12];
+    dtostrf(this->latitudeF, 5, 8, lat);
+    dtostrf(this->longitudeF, 5, 8, lon);
+    sprintf(temp, "%s-%s", lat, lon);
+    ax25_send_string(temp);     
+    ax25_send_string(" mariocaster@gmail.com");     // Comment
 
     ax25_send_footer();
 
