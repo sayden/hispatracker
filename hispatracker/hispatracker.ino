@@ -59,6 +59,8 @@ static uint8_t next_aprs = 0;
 
 Adafruit_BMP085 bmp;
 
+#include <EEPROM.h>
+
 //----------------------------------------------------------------
 //  This function gets called about once per second, during the GPS
 //  quiet time.  It's the best place to do anything that might take
@@ -155,4 +157,22 @@ uint8_t truncate(uint16_t n, uint8_t amount) {
     } else {
         return (uint8_t) n;
     }
+}
+
+void getLongitude(float l, char temp[4]){
+    int res = 190463 * (180 + l);
+
+    int res1, res2, res3;
+    int rem1, rem2, rem3;
+
+    res1 = res/753571;
+    rem1 = res%753571;
+    res2 = rem1/(91*91);
+    rem2 = rem1%(91*91);
+    res3 = rem2/(91);
+    rem3 = rem2%(91);
+
+    printf("%d %d %d %d\n", res1, res2, res3, rem3);
+
+    sprintf(temp, "%c%c%c%c", EEPROM.read(res1+33), EEPROM.read(res2+33), EEPROM.read(res3+33), EEPROM.read(rem3+33));
 }
