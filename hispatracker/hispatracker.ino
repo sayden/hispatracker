@@ -1,51 +1,50 @@
 #include <Arduino.h>
-#include <NMEAGPS.h>
+#include "NMEAGPS.h"
+
+//======================================================================
+//  Program: NMEA_isr.ino
+//
+//  Prerequisites:
+//     1) NMEA.ino works with your device
+//
+//  Description:  This minimal program parses the GPS data during the 
+//     RX character interrupt.  The ISR passes the character to
+//     the GPS object for parsing.  The GPS object will add gps_fix 
+//     structures to a buffer that can be later read() by loop().
+//======================================================================
 
 #if defined( UBRR1H )
-  // Default is to use Serial1 when available.  You could also
-  // use NeoHWSerial, especially if you want to handle GPS characters
-  // in an Interrupt Service Routine.
-  //#include <NeoHWSerial.h>
-#else
+  // Default is to use NeoSerial1 when available.  You could also
+  #include <NeoHWSerial.h>
+  // NOTE: There is an issue with IDEs before 1.6.6.  The above include 
+  // must be commented out for non-Mega boards, even though it is
+  // conditionally included.  If you are using an earlier IDEs, 
+  // comment the above include.
+#else  
   // Only one serial port is available, uncomment one of the following:
   //#include <NeoICSerial.h>
-  //#include <AltSoftSerial.h>
   #include <NeoSWSerial.h>
   //#include <SoftwareSerial.h> /* NOT RECOMMENDED */
 #endif
+#include "GPSport.h"
 
-#include <GPSport.h>
-
-//------------------------------------------------------------
-// When NeoHWSerial is used, none of the built-in HardwareSerial
-//   variables can be used: Serial, Serial1, Serial2 and Serial3
-//   *cannot* be used.  Instead, you must use the corresponding
-//   NeoSerial, NeoSerial1, NeoSerial2 or NeoSerial3.  This define
-//   is used to substitute the appropriate Serial variable in
-//   all debug prints below.
-
+#include "Streamers.h"
 #ifdef NeoHWSerial_h
   #define DEBUG_PORT NeoSerial
 #else
   #define DEBUG_PORT Serial
 #endif
 
-//------------------------------------------------------------
-// This object parses received characters
-//   into the gps.fix() data structure
+// Check configuration
 
-static NMEAGPS  gps;
+#ifndef NMEAGPS_INTERRUPT_PROCESSING
+  #error You must define NMEAGPS_INTERRUPT_PROCESSING in NMEAGPS_cfg.h!
+#endif
 
-//------------------------------------------------------------
-//  Define a set of GPS fix information.  It will
-//  hold on to the various pieces as they are received from
-//  an RMC sentence.  It can be used anywhere in your sketch.
-
-static gps_fix  fix;
+static NMEAGPS   gps;
 
 
-static uint8_t next_aprs = 0;
-
+//Import required local headers
 #include "config.h"
 #include "afsk_avr.h"
 #include "aprs.h"
@@ -53,38 +52,72 @@ static uint8_t next_aprs = 0;
 #include "power.h"
 
 
-//Internal Temp sensor
+
+//------------------------------------------------------------
+// Internal Temp sensor
 #include <Wire.h>
 #include <Adafruit_BMP085.h>  // Adafruit BMP085 library
-
 Adafruit_BMP085 bmp;
 
-#include <EEPROM.h>
 
-//----------------------------------------------------------------
-//  This function gets called about once per second, during the GPS
-//  quiet time.  It's the best place to do anything that might take
-//  a while: print a bunch of things, write to SD, send an SMS, etc.
-//
-//  By doing the "hard" work during the quiet time, the CPU can get back to
-//  reading the GPS chars as they come in, so that no chars are lost.
+//-------------------------------------------------------------
+static uint8_t next_aprs = 0;
+
+
+//--------------------------
+
+static void GPSisr( uint8_t c )
+{
+  gps.handle( c );
+
+} // GPSisr
+
+//--------------------------
+
+void setup()
+{
+  pinMode(LED_PIN, OUTPUT);
+  pin_write(LED_PIN, LOW);
+
+  afsk_setup();
+
+  //Internal temp and pressure sensor 
+  bmp.begin();
+
+  // Start the normal trace output
+  DEBUG_PORT.begin(9600);
+  while (!DEBUG_PORT)
+    ;
+
+
+  trace_header( DEBUG_PORT );
+
+  DEBUG_PORT.flush();
+
+  // Start the UART for the GPS device
+  gps_port.attachInterrupt( GPSisr );
+  gps_port.begin( 9600 );
+}
+
+static gps_fix  fix_data;
 
 static void doSomeWork() {
-  next_aprs++;
+  // Print all the things!
 
+  next_aprs++;
   if (next_aprs >= 5) {
     next_aprs = 0;
 
     char latitude[9];
     char longitude[10];
     char datetime[7];
-    if(fix.valid.location) {
-      snprintf(latitude, 9, "%02d%02d.%02u%c", fix.latitudeDMS.degrees, fix.latitudeDMS.minutes, truncate(fix.latitudeDMS.seconds_whole, 2), fix.latitudeDMS.NS() );
-      snprintf(longitude, 10, "%03d%02d.%02u%c", fix.longitudeDMS.degrees, fix.longitudeDMS.minutes, truncate(fix.longitudeDMS.seconds_whole, 2), fix.longitudeDMS.EW() );
+    if(fix_data.valid.location) {
+      snprintf(latitude, 9, "%02d%02d.%02u%c", fix_data.latitudeDMS.degrees, fix_data.latitudeDMS.minutes, truncate(fix_data.latitudeDMS.seconds_whole, 2), fix_data.latitudeDMS.NS() );
+      snprintf(longitude, 10, "%03d%02d.%02u%c", fix_data.longitudeDMS.degrees, fix_data.longitudeDMS.minutes, truncate(fix_data.longitudeDMS.seconds_whole, 2), fix_data.longitudeDMS.EW() );
     }
 
 
-    snprintf(datetime, 7, "%02d%02d%02d", fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds);
+    snprintf(datetime, 7, "%02d%02d%02d", fix_data.dateTime.hours, fix_data.dateTime.minutes, fix_data.dateTime.seconds);
 
   
     //Check pressure the flight day in http://weather.noaa.gov/weather/current/LEMD.html
@@ -92,59 +125,47 @@ static void doSomeWork() {
     //this value multiplied by 100
     APRSPacket packet(datetime,
                       bmp.readAltitude(101900),
-                      fix.speed(),
-                      fix.heading(),
+                      fix_data.speed(),
+                      fix_data.heading(),
                       bmp.readTemperature(),
                       bmp.readPressure());
 
     packet.setLatitude(latitude);
     packet.setLongitude(longitude);
-    if(fix.valid.location){
-      packet.setLatitudeF(fix.latitude());
-      packet.setLongitudeF(fix.longitude());
+    if(fix_data.valid.location){
+      packet.setLatitudeF(fix_data.latitude());
+      packet.setLongitudeF(fix_data.longitude());
     }
   
-    packet.aprs_send();
-  
-    while (afsk_flush()) {
-      power_save();
-    }
-  }
 
+    // packet.aprs_send();
+  
+    // while (afsk_flush()) {
+    //   power_save();
+    // }
+    DEBUG_PORT.println(bmp.readTemperature());
+  }
 } // doSomeWork
-
-//------------------------------------
-//  This is the main GPS parsing loop.
-
-static void GPSloop() {
-  while (gps.available( gps_port )) {
-    fix = gps.read();
-    doSomeWork();
-  }
-
-} // GPSloop
-
-//--------------------------
-
-void setup() {
-  // Start the UART for the GPS device
-  gps_port.begin( 9600 );
-
-	pinMode(LED_PIN, OUTPUT);
-	pin_write(LED_PIN, LOW);
-
-	bmp.begin();
-
-	afsk_setup();
-
-	next_aprs = 0;
-}
 
 //--------------------------
 
 void loop() {
-  GPSloop();
+  if (gps.available( gps_port )) {
+    DEBUG_PORT.println(bmp.readTemperature());
+    // Print all the things!
+    trace_all( DEBUG_PORT, gps, gps.read() );
+    fix_data = gps.fix();
+    // fix_data = gps.read();
+    doSomeWork();
+  }
+
+  if (gps.overrun()) {
+    gps.overrun( false );
+    DEBUG_PORT.println( F("DATA OVERRUN: took too long to use gps.read() data!") );
+
+  }
 }
+
 
 //truncate takes a uint16_t number and returns its "amount" most significant
 //number: For example from 159 and 2 it will return 15 or from 14231 and 3 
@@ -157,22 +178,4 @@ uint8_t truncate(uint16_t n, uint8_t amount) {
     } else {
         return (uint8_t) n;
     }
-}
-
-void getLongitude(float l, char temp[4]){
-    int res = 190463 * (180 + l);
-
-    int res1, res2, res3;
-    int rem1, rem2, rem3;
-
-    res1 = res/753571;
-    rem1 = res%753571;
-    res2 = rem1/(91*91);
-    rem2 = rem1%(91*91);
-    res3 = rem2/(91);
-    rem3 = rem2%(91);
-
-    printf("%d %d %d %d\n", res1, res2, res3, rem3);
-
-    sprintf(temp, "%c%c%c%c", EEPROM.read(res1+33), EEPROM.read(res2+33), EEPROM.read(res3+33), EEPROM.read(rem3+33));
 }
