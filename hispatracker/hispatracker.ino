@@ -29,7 +29,7 @@ static gps_fix  fix_data;
 static uint8_t next_aprs = 0;
 
 //Sends an APRS packet every...
-#define SEND_TIME_SPACING 60
+#define SEND_TIME_SPACING 10
 static APRSPacket packet;
 
 
@@ -47,7 +47,7 @@ Adafruit_BMP085 bmp;
 #endif
 
 void setup()
-{
+{  
   #ifdef LOAD_EEPROM
       loadEEPROM();
   #endif
