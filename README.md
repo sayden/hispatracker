@@ -1,6 +1,6 @@
 # WIP hispatracker
 
-![Hispatracker](docs/Hispatracker_Probe_assembled_v1.jpg)
+<img src="docs/Hispatracker_Probe_assembled_v1.jpg" alt="Hispatracker" width=500px>
 
 An Arduino based project for High Altitude Ballooning. APRS tracker, 2xGPS, temperature and pressure. It still lacks SD logging and an external temperature sensor as the sketch was running out of memory. We are working in a improved version with the atmega1284p-pu to achieve this goals (and maybe some more).
 
